@@ -3,7 +3,7 @@
 # Same image builds the map (osrm-extract/partition/customize) and serves it
 # (osrm-routed). The heavy build runs at RUNTIME in entrypoint.sh (not in the
 # Docker build), so it has the mounted volume and won't hit build timeouts.
-FROM osrm/osrm-backend:v5.27.1
+FROM osrm/osrm-backend:v5.25.0
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl ca-certificates \

@@ -36,12 +36,15 @@ if [ ! -f "$DATA/READY" ]; then
   # 2. Filter to highways + turn-restrictions (keeps their nodes automatically). This
   #    drops the ~90% of OSM data that isn't roads, so osrm-extract fits in 24 GB.
   #    osmconvert/osmfilter are self-contained static binaries (no apt needed).
+  # Fetched unconditionally: osmconvert is also used below to count nodes, which
+  # runs even when the filtered pbf already exists and this block is skipped.
+  echo ">> Fetching osmconvert + osmfilter"
+  curl -fL -o /usr/local/bin/osmconvert http://m.m.i24.cc/osmconvert64
+  curl -fL -o /usr/local/bin/osmfilter  http://m.m.i24.cc/osmfilter64
+  chmod +x /usr/local/bin/osmconvert /usr/local/bin/osmfilter
+
   if [ ! -f "$ROADS" ]; then
     rm -f "$DATA/full.o5m" "$DATA/roads.o5m"  # drop partials from any earlier crash
-    echo ">> Fetching osmconvert + osmfilter"
-    curl -fL -o /usr/local/bin/osmconvert http://m.m.i24.cc/osmconvert64
-    curl -fL -o /usr/local/bin/osmfilter  http://m.m.i24.cc/osmfilter64
-    chmod +x /usr/local/bin/osmconvert /usr/local/bin/osmfilter
 
     # Each step deletes its input as soon as the output is complete. The whole
     # chain is disk-bound (~25 GB for full.o5m alone), so we never hold two big
@@ -65,6 +68,20 @@ if [ ! -f "$DATA/READY" ]; then
     rm -f "$DATA/roads.o5m"
     df -h "$DATA" | tail -1
     ls -lh "$ROADS"
+  fi
+
+  # Node/way counts for the region actually being built. osrm-extract's peak RAM
+  # scales with node count, so this is the number that decides whether a region
+  # fits in the container's memory limit. Cheap to compute (streams, ~2 min).
+  echo ">> Counting nodes/ways in $ROADS"
+  osmconvert "$ROADS" --out-statistics | grep -E "^(nodes|ways|relations|timestamp)" || true
+
+  # Set OSRM_COUNT_ONLY=1 to stop here. osrm-extract OOMs on regions too big for
+  # the container and Railway then burns ~4 min of CPU per retry, five times over,
+  # which is pure waste when all you wanted was the node count.
+  if [ -n "${OSRM_COUNT_ONLY:-}" ]; then
+    echo ">> OSRM_COUNT_ONLY set; stopping before extract."
+    exit 0
   fi
 
   echo ">> osrm-extract (car profile, ${THREADS} threads)"

@@ -20,7 +20,9 @@ if [ ! -f "$DATA/READY" ]; then
   echo ">> No processed graph yet. One-time build starting (expect 30-90 min)."
   if [ ! -f "$PBF" ]; then
     echo ">> Downloading US extract from $PBF_URL (~13 GB)"
-    curl -fL --retry 3 -o "$PBF" "$PBF_URL"
+    # Fall back to a no-cert-verify retry in case the old base image's CA bundle
+    # doesn't trust the download host (public map data, so this is acceptable).
+    curl -fL --retry 3 -o "$PBF" "$PBF_URL" || curl -fkL --retry 3 -o "$PBF" "$PBF_URL"
   fi
   echo ">> osrm-extract (car profile)"
   osrm-extract -p /opt/car.lua "$PBF"

@@ -12,6 +12,10 @@ NAME="${OSRM_NAME:-us-latest}"
 PBF="$DATA/$NAME.osm.pbf"
 OSRM="$DATA/$NAME.osrm"
 PORT="${PORT:-5000}"
+# Cap preprocessing threads to keep the memory peak under the container limit. The
+# full-US osrm-extract with all cores (32) spikes past 24 GB and gets OOM-killed;
+# fewer threads means smaller parallel buffers. Slower, but it fits. Tunable.
+THREADS="${OSRM_THREADS:-4}"
 
 mkdir -p "$DATA"
 cd "$DATA"
@@ -24,12 +28,12 @@ if [ ! -f "$DATA/READY" ]; then
     # doesn't trust the download host (public map data, so this is acceptable).
     curl -fL --retry 3 -o "$PBF" "$PBF_URL" || curl -fkL --retry 3 -o "$PBF" "$PBF_URL"
   fi
-  echo ">> osrm-extract (car profile)"
-  osrm-extract -p /opt/car.lua "$PBF"
+  echo ">> osrm-extract (car profile, ${THREADS} threads)"
+  osrm-extract -t "$THREADS" -p /opt/car.lua "$PBF"
   echo ">> osrm-partition"
-  osrm-partition "$OSRM"
+  osrm-partition -t "$THREADS" "$OSRM"
   echo ">> osrm-customize"
-  osrm-customize "$OSRM"
+  osrm-customize -t "$THREADS" "$OSRM"
   touch "$DATA/READY"
   rm -f "$PBF"            # reclaim ~13 GB; the .osrm.* files are all we need to serve
   echo ">> Build complete."

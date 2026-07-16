@@ -1,0 +1,5 @@
+# KW customer zip codes and the distance matrix built from them are business
+# data. This repo is PUBLIC. Never commit them.
+points.csv
+matrix.csv
+*.osm.pbf
